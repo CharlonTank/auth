@@ -1,10 +1,10 @@
 module Auth.Common exposing (..)
 
+import AssocList as Dict exposing (Dict)
 import Base64.Encode as Base64
 import Browser.Navigation exposing (Key)
 import Bytes exposing (Bytes)
 import Bytes.Encode as Bytes
-import Dict exposing (Dict)
 import Http
 import Json.Decode as Json
 import OAuth

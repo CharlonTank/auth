@@ -1,9 +1,9 @@
 module Auth.Protocol.OAuth exposing (..)
 
+import AssocList as Dict exposing (Dict)
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
 import Browser.Navigation as Navigation
-import Dict exposing (Dict)
 import Http
 import Json.Decode as Json
 import OAuth

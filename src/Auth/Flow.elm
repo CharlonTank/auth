@@ -1,12 +1,12 @@
 module Auth.Flow exposing (..)
 
+import AssocList as Dict exposing (Dict)
 import Auth.Common exposing (LogoutEndpointConfig(..), MethodId, ToBackend(..))
 import Auth.Method.EmailMagicLink
 import Auth.Method.OAuthGithub
 import Auth.Method.OAuthGoogle
 import Auth.Protocol.OAuth
 import Browser.Navigation as Navigation
-import Dict exposing (Dict)
 import List.Extra as List
 import OAuth
 import OAuth.AuthorizationCode as OAuth

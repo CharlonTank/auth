@@ -1,10 +1,10 @@
 module Auth.Method.EmailMagicLink exposing (..)
 
+import AssocList as Dict exposing (Dict)
 import Auth.Common exposing (..)
 import Base64.Encode as Base64
 import Bytes exposing (Bytes)
 import Bytes.Encode as Bytes
-import Dict exposing (Dict)
 import Http
 import Json.Decode as Json
 import List.Extra as List
