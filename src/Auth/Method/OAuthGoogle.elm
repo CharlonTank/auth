@@ -1,6 +1,6 @@
 module Auth.Method.OAuthGoogle exposing (..)
 
-import AssocList as Dict exposing (Dict)
+import SeqDict as Dict exposing (SeqDict)
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
 import Auth.Protocol.OAuth
@@ -50,7 +50,7 @@ getUserInfo :
     -> Task Auth.Common.Error UserInfo
 getUserInfo authenticationSuccess =
     let
-        extract : String -> Json.Decoder a -> Dict String Json.Value -> Result String a
+        extract : String -> Json.Decoder a -> SeqDict String Json.Value -> Result String a
         extract k d v =
             Dict.get k v
                 |> Maybe.map
@@ -60,7 +60,7 @@ getUserInfo authenticationSuccess =
                     )
                 |> Maybe.withDefault (Err <| "Key " ++ k ++ " not found")
 
-        extractOptional : a -> String -> Json.Decoder a -> Dict String Json.Value -> Result String a
+        extractOptional : a -> String -> Json.Decoder a -> SeqDict String Json.Value -> Result String a
         extractOptional default k d v =
             Dict.get k v
                 |> Maybe.map

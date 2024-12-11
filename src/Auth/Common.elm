@@ -1,6 +1,6 @@
 module Auth.Common exposing (..)
 
-import AssocList as Dict exposing (Dict)
+import SeqDict as Dict exposing (SeqDict)
 import Base64.Encode as Base64
 import Browser.Navigation exposing (Key)
 import Bytes exposing (Bytes)

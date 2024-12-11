@@ -1,6 +1,6 @@
 module Auth.Flow exposing (..)
 
-import AssocList as Dict exposing (Dict)
+import SeqDict as Dict exposing (SeqDict)
 import Auth.Common exposing (LogoutEndpointConfig(..), MethodId, ToBackend(..))
 import Auth.Method.EmailMagicLink
 import Auth.Method.OAuthGithub
@@ -113,7 +113,7 @@ type alias BackendUpdateConfig frontendMsg backendMsg toFrontend frontendModel b
     { asToFrontend : Auth.Common.ToFrontend -> toFrontend
     , asBackendMsg : Auth.Common.BackendMsg -> backendMsg
     , sendToFrontend : Auth.Common.SessionId -> toFrontend -> Cmd backendMsg
-    , backendModel : { backendModel | pendingAuths : Dict Auth.Common.SessionId Auth.Common.PendingAuth }
+    , backendModel : { backendModel | pendingAuths : SeqDict Auth.Common.SessionId Auth.Common.PendingAuth }
     , loadMethod : Auth.Common.MethodId -> Maybe (Auth.Common.Method frontendMsg backendMsg frontendModel backendModel)
     , handleAuthSuccess :
         Auth.Common.SessionId
@@ -122,7 +122,7 @@ type alias BackendUpdateConfig frontendMsg backendMsg toFrontend frontendModel b
         -> MethodId
         -> Maybe Auth.Common.Token
         -> Time.Posix
-        -> ( { backendModel | pendingAuths : Dict Auth.Common.SessionId Auth.Common.PendingAuth }, Cmd backendMsg )
+        -> ( { backendModel | pendingAuths : SeqDict Auth.Common.SessionId Auth.Common.PendingAuth }, Cmd backendMsg )
     , renewSession : Auth.Common.SessionId -> Auth.Common.ClientId -> backendModel -> ( backendModel, Cmd backendMsg )
     , logout : Auth.Common.SessionId -> Auth.Common.ClientId -> backendModel -> ( backendModel, Cmd backendMsg )
     , isDev : Bool
@@ -135,9 +135,9 @@ backendUpdate :
         backendMsg
         toFrontend
         frontendModel
-        { backendModel | pendingAuths : Dict Auth.Common.SessionId Auth.Common.PendingAuth }
+        { backendModel | pendingAuths : SeqDict Auth.Common.SessionId Auth.Common.PendingAuth }
     -> Auth.Common.BackendMsg
-    -> ( { backendModel | pendingAuths : Dict Auth.Common.SessionId Auth.Common.PendingAuth }, Cmd backendMsg )
+    -> ( { backendModel | pendingAuths : SeqDict Auth.Common.SessionId Auth.Common.PendingAuth }, Cmd backendMsg )
 backendUpdate { asToFrontend, asBackendMsg, sendToFrontend, backendModel, loadMethod, handleAuthSuccess, renewSession, logout, isDev } authBackendMsg =
     let
         authError str =

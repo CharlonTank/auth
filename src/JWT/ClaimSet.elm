@@ -1,6 +1,6 @@
 module JWT.ClaimSet exposing (ClaimSet, VerificationError(..), VerifyOptions, decoder, encoder, isValid)
 
-import AssocList as Dict exposing (Dict)
+import SeqDict as Dict exposing (SeqDict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (custom, optional)
 import Json.Encode as Encode
@@ -15,11 +15,11 @@ type alias ClaimSet =
     , nbf : Maybe Int
     , iat : Maybe Int
     , jti : Maybe String
-    , metadata : Dict String Decode.Value
+    , metadata : SeqDict String Decode.Value
     }
 
 
-decoderDict : Decoder a -> Decoder (Dict String a)
+decoderDict : Decoder a -> Decoder (SeqDict String a)
 decoderDict decoder_ =
     Decode.map Dict.fromList (Decode.keyValuePairs decoder_)
 
