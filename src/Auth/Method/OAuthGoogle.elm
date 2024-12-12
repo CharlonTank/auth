@@ -1,6 +1,5 @@
 module Auth.Method.OAuthGoogle exposing (..)
 
-import SeqDict as Dict exposing (SeqDict)
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
 import Auth.Protocol.OAuth
@@ -13,6 +12,7 @@ import JWT.JWS as JWS
 import Json.Decode as Json
 import OAuth
 import OAuth.AuthorizationCode as OAuth
+import SeqDict as Dict exposing (SeqDict)
 import Task exposing (Task)
 import Url exposing (Protocol(..), Url)
 import Url.Builder

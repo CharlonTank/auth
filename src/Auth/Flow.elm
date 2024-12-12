@@ -1,6 +1,5 @@
 module Auth.Flow exposing (..)
 
-import SeqDict as Dict exposing (SeqDict)
 import Auth.Common exposing (LogoutEndpointConfig(..), MethodId, ToBackend(..))
 import Auth.Method.EmailMagicLink
 import Auth.Method.OAuthGithub
@@ -12,6 +11,7 @@ import OAuth
 import OAuth.AuthorizationCode as OAuth
 import Process
 import SHA1
+import SeqDict as Dict exposing (SeqDict)
 import Task
 import Time
 import Url exposing (Protocol(..), Url)

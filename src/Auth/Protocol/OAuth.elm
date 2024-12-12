@@ -1,6 +1,5 @@
 module Auth.Protocol.OAuth exposing (..)
 
-import SeqDict as Dict exposing (SeqDict)
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
 import Browser.Navigation as Navigation
@@ -10,6 +9,7 @@ import OAuth
 import OAuth.AuthorizationCode as OAuth
 import Process
 import SHA1
+import SeqDict as Dict exposing (SeqDict)
 import Task exposing (Task)
 import Time
 import Url exposing (Url)

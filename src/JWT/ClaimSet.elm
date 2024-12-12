@@ -1,9 +1,9 @@
 module JWT.ClaimSet exposing (ClaimSet, VerificationError(..), VerifyOptions, decoder, encoder, isValid)
 
-import SeqDict as Dict exposing (SeqDict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (custom, optional)
 import Json.Encode as Encode
+import SeqDict as Dict exposing (SeqDict)
 import Time exposing (Posix)
 
 

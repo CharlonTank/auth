@@ -102,7 +102,7 @@ request.
 
 -}
 
-import Dict as Dict exposing (Dict)
+import Dict exposing (Dict)
 import Http
 import Json.Decode as Json
 import OAuth exposing (ErrorCode, GrantType(..), ResponseType(..), Token, errorCodeFromString, grantTypeToString)

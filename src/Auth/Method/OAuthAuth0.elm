@@ -1,6 +1,5 @@
 module Auth.Method.OAuthAuth0 exposing (..)
 
-import SeqDict as Dict exposing (SeqDict)
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
 import Auth.Protocol.OAuth
@@ -12,6 +11,7 @@ import JWT exposing (..)
 import JWT.JWS as JWS
 import Json.Decode as Json
 import OAuth.AuthorizationCode as OAuth
+import SeqDict as Dict exposing (SeqDict)
 import Task exposing (Task)
 import Url exposing (Protocol(..), Url)
 
@@ -58,25 +58,33 @@ getUserInfo :
     -> Task Auth.Common.Error UserInfo
 getUserInfo authenticationSuccess =
     let
-        extract : String -> Json.Decoder a -> Dict String Json.Value -> Result String a
+        extract : String -> Json.Decoder a -> SeqDict String Json.Value -> Result String a
         extract k d v =
             Dict.get k v
                 |> Maybe.map
-                    (\v_ ->
-                        Json.decodeValue d v_
-                            |> Result.mapError Json.errorToString
+                    (\value ->
+                        case Json.decodeValue d value of
+                            Ok decoded ->
+                                Ok decoded
+
+                            Err err ->
+                                Err <| Json.errorToString err
                     )
                 |> Maybe.withDefault (Err <| "Key " ++ k ++ " not found")
 
-        extractOptional : a -> String -> Json.Decoder a -> Dict String Json.Value -> Result String a
+        extractOptional : a -> String -> Json.Decoder a -> SeqDict String Json.Value -> Result String a
         extractOptional default k d v =
             Dict.get k v
                 |> Maybe.map
-                    (\v_ ->
-                        Json.decodeValue d v_
-                            |> Result.mapError Json.errorToString
+                    (\value ->
+                        case Json.decodeValue d value of
+                            Ok decoded ->
+                                Ok decoded
+
+                            Err _ ->
+                                Ok default
                     )
-                |> Maybe.withDefault (Ok <| default)
+                |> Maybe.withDefault (Ok default)
 
         tokenR =
             case authenticationSuccess.idJwt of

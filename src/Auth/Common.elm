@@ -1,6 +1,5 @@
 module Auth.Common exposing (..)
 
-import SeqDict as Dict exposing (SeqDict)
 import Base64.Encode as Base64
 import Browser.Navigation exposing (Key)
 import Bytes exposing (Bytes)
@@ -10,6 +9,7 @@ import Json.Decode as Json
 import OAuth
 import OAuth.AuthorizationCode as OAuth
 import Process
+import SeqDict as Dict exposing (SeqDict)
 import Task exposing (Task)
 import Time
 import Url exposing (Protocol(..), Url)
