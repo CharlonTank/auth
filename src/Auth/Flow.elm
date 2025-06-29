@@ -38,6 +38,10 @@ init model methodId origin navigationKey toBackendFn =
         "OAuthAuth0" ->
             Auth.Protocol.OAuth.onFrontendCallbackInit model methodId origin navigationKey toBackendFn
 
+        "GoogleOneTap" ->
+            -- Google One Tap doesn't use callback URLs, so just return the model unchanged
+            ( model, Command.none )
+
         _ ->
             let
                 clearUrl =
@@ -104,6 +108,21 @@ updateFromFrontend { asBackendMsg } clientId sessionId authToBackend model =
                     (\_ ->
                         asBackendMsg <|
                             Auth.Common.AuthLogout sessionId clientId
+                    )
+            )
+
+        Auth.Common.AuthGoogleOneTapTokenReceived methodId idToken ->
+            ( model
+            , Effect.Time.now
+                |> Effect.Task.perform
+                    (\now ->
+                        asBackendMsg <|
+                            Auth.Common.AuthGoogleOneTapTokenReceived_
+                                sessionId
+                                clientId
+                                methodId
+                                idToken
+                                now
                     )
             )
 
@@ -177,6 +196,12 @@ backendUpdate { asToFrontend, asBackendMsg, sendToFrontend, backendModel, loadMe
 
                         Auth.Common.ProtocolOAuth config ->
                             Auth.Protocol.OAuth.initiateSignin isDev sessionId baseUrl config asBackendMsg now backendModel
+
+                        Auth.Common.ProtocolGoogleOneTap config ->
+                            -- Google One Tap doesn't use traditional sign-in initiation
+                            ( backendModel
+                            , sendToFrontend sessionId (asToFrontend (Auth.Common.AuthError (Auth.Common.ErrAuthString "Google One Tap does not support sign-in initiation")))
+                            )
                 )
 
         Auth.Common.AuthSigninInitiatedDelayed_ sessionId initiateMsg ->
@@ -192,6 +217,12 @@ backendUpdate { asToFrontend, asBackendMsg, sendToFrontend, backendModel, loadMe
 
                         Auth.Common.ProtocolOAuth config ->
                             Auth.Protocol.OAuth.onAuthCallbackReceived sessionId clientId config receivedUrl code state now asBackendMsg backendModel
+
+                        Auth.Common.ProtocolGoogleOneTap config ->
+                            -- Google One Tap doesn't use callbacks
+                            ( backendModel
+                            , sendToFrontend sessionId (asToFrontend (Auth.Common.AuthError (Auth.Common.ErrAuthString "Google One Tap does not support callbacks")))
+                            )
                 )
 
         Auth.Common.AuthSuccess sessionId clientId methodId now res ->
@@ -216,6 +247,42 @@ backendUpdate { asToFrontend, asBackendMsg, sendToFrontend, backendModel, loadMe
 
         Auth.Common.AuthLogout sessionId clientId ->
             logout sessionId clientId backendModel
+
+        Auth.Common.AuthGoogleOneTapTokenReceived_ sessionId clientId methodId idToken now ->
+            withMethod methodId
+                sessionId
+                (\method ->
+                    case method of
+                        Auth.Common.ProtocolGoogleOneTap config ->
+                            -- Verify the ID token and extract user info
+                            case config.verifyIdToken config.clientId idToken of
+                                Ok userInfo ->
+                                    -- Success - trigger the AuthSuccess flow
+                                    backendUpdate 
+                                        { asToFrontend = asToFrontend
+                                        , asBackendMsg = asBackendMsg
+                                        , sendToFrontend = sendToFrontend
+                                        , backendModel = backendModel
+                                        , loadMethod = loadMethod
+                                        , handleAuthSuccess = handleAuthSuccess
+                                        , renewSession = renewSession
+                                        , logout = logout
+                                        , isDev = isDev
+                                        }
+                                        (Auth.Common.AuthSuccess sessionId clientId methodId now (Ok ( userInfo, Nothing )))
+                                
+                                Err error ->
+                                    -- Verification failed
+                                    ( backendModel
+                                    , sendToFrontend sessionId (asToFrontend (Auth.Common.AuthError (Auth.Common.ErrAuthString error)))
+                                    )
+
+                        _ ->
+                            -- Wrong protocol type for this message
+                            ( backendModel
+                            , sendToFrontend sessionId (asToFrontend (Auth.Common.AuthError (Auth.Common.ErrAuthString "Invalid method for Google One Tap")))
+                            )
+                )
 
 
 signInRequested :
@@ -343,6 +410,9 @@ methodLoaderFrontend methods methodId =
 
                     Auth.Common.ProtocolOAuth method ->
                         method.id == methodId
+
+                    Auth.Common.ProtocolGoogleOneTap method ->
+                        method.id == methodId
             )
 
 
@@ -367,6 +437,9 @@ methodLoaderBackend methods methodId =
                         method.id == methodId
 
                     Auth.Common.ProtocolOAuth method ->
+                        method.id == methodId
+
+                    Auth.Common.ProtocolGoogleOneTap method ->
                         method.id == methodId
             )
 

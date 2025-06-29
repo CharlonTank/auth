@@ -1,6 +1,6 @@
 module Auth.Common exposing (..)
 
-import Base64.Encode as Base64
+import Base64
 import Bytes exposing (Bytes)
 import Bytes.Encode as Bytes
 import Duration
@@ -29,6 +29,7 @@ type alias Config frontendMsg toBackend backendMsg toFrontend frontendModel back
 type Method frontendMsg backendMsg frontendModel backendModel restriction toMsg
     = ProtocolOAuth (ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel restriction toMsg)
     | ProtocolEmailMagicLink (ConfigurationEmailMagicLink frontendMsg backendMsg frontendModel backendModel restriction toMsg)
+    | ProtocolGoogleOneTap (ConfigurationGoogleOneTap backendMsg backendModel)
 
 
 type alias ConfigurationEmailMagicLink frontendMsg backendMsg frontendModel backendModel restriction toMsg =
@@ -82,6 +83,16 @@ type alias ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel 
     }
 
 
+type alias ConfigurationGoogleOneTap backendMsg backendModel =
+    { id : String
+    , clientId : String
+    , clientSecret : String
+    , scope : List String
+    , verifyIdToken : String -> String -> Result String UserInfo
+    , placeholder : ( backendModel, backendMsg ) -> ()
+    }
+
+
 type alias SessionIdString =
     String
 
@@ -95,6 +106,7 @@ type ToBackend
     | AuthCallbackReceived MethodId Url AuthCode State
     | AuthRenewSessionRequested
     | AuthLogoutRequested
+    | AuthGoogleOneTapTokenReceived MethodId String -- methodId, idToken
 
 
 type BackendMsg
@@ -104,6 +116,7 @@ type BackendMsg
     | AuthSuccess SessionId ClientId MethodId Effect.Time.Posix (Result Error ( UserInfo, Maybe Token ))
     | AuthRenewSession SessionId ClientId
     | AuthLogout SessionId ClientId
+    | AuthGoogleOneTapTokenReceived_ SessionId ClientId MethodId String Effect.Time.Posix -- sessionId, clientId, methodId, idToken, now
 
 
 type ToFrontend
@@ -206,8 +219,8 @@ toBytes =
 
 
 base64 : Bytes -> String
-base64 =
-    Base64.bytes >> Base64.encode
+base64 bytes =
+    Base64.fromBytes bytes |> Maybe.withDefault ""
 
 
 convertBytes : List Int -> { state : String }
