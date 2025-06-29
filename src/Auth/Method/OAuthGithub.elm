@@ -7,7 +7,7 @@ import Base64.Encode as Base64
 import Bytes exposing (Bytes)
 import Bytes.Encode as Bytes
 import Effect.Browser.Navigation as Navigation
-import Effect.Command exposing (FrontendOnly)
+import Effect.Command exposing (BackendOnly)
 import Effect.Http
 import Effect.Task exposing (Task)
 import Json.Decode as Json
@@ -28,7 +28,7 @@ configuration :
             backendMsg
             { frontendModel | authFlow : Flow, authRedirectBaseUrl : Url }
             backendModel
-            FrontendOnly
+            BackendOnly
             toMsg
 configuration clientId clientSecret =
     ProtocolOAuth
@@ -93,6 +93,7 @@ getUserInfoTask authenticationSuccess =
                     |> optional "email" Json.string ""
                     |> optional "name" decodeNonEmptyString Nothing
                     |> optional "login" decodeNonEmptyString Nothing
+                    |> optional "avatar_url" decodeNonEmptyString Nothing
                 )
         , timeout = Nothing
         }

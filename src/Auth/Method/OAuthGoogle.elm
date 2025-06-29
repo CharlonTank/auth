@@ -90,18 +90,20 @@ getUserInfo authenticationSuccess =
                             meta =
                                 token.claims.metadata
                         in
-                        Result.map4
-                            (\email email_verified given_name family_name ->
+                        Result.map5
+                            (\email email_verified given_name family_name picture ->
                                 { email = email
                                 , email_verified = email_verified
                                 , given_name = given_name
                                 , family_name = family_name
+                                , picture = picture
                                 }
                             )
                             (extract "email" Json.string meta)
                             (extract "email_verified" Json.bool meta)
                             (extract "given_name" Json.string meta)
                             (extractOptional Nothing "family_name" (Json.string |> Json.nullable) meta)
+                            (extractOptional Nothing "picture" (Json.string |> Json.nullable) meta)
                     )
     in
     Effect.Task.mapError (Auth.Common.ErrAuthString << HttpHelpers.httpErrorToString) <|
@@ -114,6 +116,7 @@ getUserInfo authenticationSuccess =
                             |> String.join " "
                             |> nothingIfEmpty
                     , username = Nothing
+                    , profilePicture = result.picture
                     }
 
             Err err ->

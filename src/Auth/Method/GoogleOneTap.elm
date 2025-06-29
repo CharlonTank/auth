@@ -94,6 +94,7 @@ decodeGoogleUserInfo metadata =
             { email = email
             , name = name
             , username = Nothing
+            , profilePicture = picture
             }
         )
         (extract "email" Json.string metadata)

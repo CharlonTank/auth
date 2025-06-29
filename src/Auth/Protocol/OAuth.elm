@@ -10,6 +10,7 @@ import Effect.Lamdera exposing (SessionId, sessionIdToString)
 import Effect.Task exposing (Task)
 import Effect.Time
 import Json.Decode as Json
+import List
 import OAuth
 import OAuth.AuthorizationCode as OAuth
 import SHA1
@@ -91,6 +92,9 @@ initiateSignin isDev sessionId baseUrl config asBackendMsg now backendModel =
 
         url =
             generateSigninUrl baseUrl signedState config
+            
+        _ = Debug.log "OAuth initiate - sessionId" (sessionIdToString sessionId)
+        _ = Debug.log "OAuth initiate - state" signedState
     in
     ( { backendModel
         | pendingAuths = backendModel.pendingAuths |> Dict.insert sessionId newPendingAuth
@@ -150,10 +154,38 @@ onAuthCallbackReceived sessionId clientId method receivedUrl code state now asBa
                             Effect.Task.fail <| Auth.Common.ErrAuthString "Invalid auth state. Please log in again or report this issue."
 
                     Nothing ->
+                        let
+                            _ = Debug.log "OAuth callback - sessionId" (sessionIdToString sessionId)
+                            _ = Debug.log "OAuth callback - pendingAuths" (Dict.keys backendModel.pendingAuths |> List.map sessionIdToString)
+                        in
                         Effect.Task.fail <| Auth.Common.ErrAuthString "Couldn't validate auth, please login again."
             )
         |> Effect.Task.attempt (Auth.Common.AuthSuccess sessionId clientId method.id now >> asBackendMsg)
     )
+
+
+oauthTokenResolver : Effect.Http.Resolver BackendOnly Effect.Http.Error OAuth.AuthenticationSuccess
+oauthTokenResolver =
+    Effect.Http.stringResolver <|
+        \response ->
+            case response of
+                Effect.Http.GoodStatus_ _ body ->
+                    Json.decodeString OAuth.defaultAuthenticationSuccessDecoder body
+                        |> Result.mapError Json.errorToString
+                        |> Result.mapError Effect.Http.BadBody
+
+                Effect.Http.BadStatus_ metadata body ->
+                    -- OAuth errors come with 400 status, just return the body
+                    Err (Effect.Http.BadBody body)
+
+                Effect.Http.BadUrl_ message ->
+                    Err (Effect.Http.BadUrl message)
+
+                Effect.Http.Timeout_ ->
+                    Err Effect.Http.Timeout
+
+                Effect.Http.NetworkError_ ->
+                    Err Effect.Http.NetworkError
 
 
 validateCallbackToken :
@@ -180,7 +212,7 @@ validateCallbackToken clientId clientSecret tokenEndpoint redirectUri code =
     , headers = req.headers ++ [ Effect.Http.header "Accept" "application/json" ]
     , url = req.url
     , body = req.body
-    , resolver = HttpHelpers.jsonResolver OAuth.defaultAuthenticationSuccessDecoder
+    , resolver = oauthTokenResolver
     , timeout = req.timeout |> Maybe.map Duration.milliseconds
     }
         |> Effect.Http.task
@@ -214,10 +246,19 @@ parseAuthenticationResponseError httpErr =
                     Auth.Common.ErrAuthentication error
 
                 _ ->
-                    Auth.Common.ErrHTTPGetAccessToken
+                    Auth.Common.ErrAuthString ("Failed to decode OAuth error from response: " ++ body)
 
-        _ ->
-            Auth.Common.ErrHTTPGetAccessToken
+        Effect.Http.BadUrl url ->
+            Auth.Common.ErrAuthString ("Bad URL: " ++ url)
+            
+        Effect.Http.Timeout ->
+            Auth.Common.ErrAuthString "Request timeout"
+            
+        Effect.Http.NetworkError ->
+            Auth.Common.ErrAuthString "Network error"
+            
+        Effect.Http.BadStatus status ->
+            Auth.Common.ErrAuthString ("Bad status: " ++ String.fromInt status)
 
 
 makeToken : Auth.Common.MethodId -> OAuth.AuthenticationSuccess -> Effect.Time.Posix -> Auth.Common.Token
