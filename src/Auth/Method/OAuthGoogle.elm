@@ -3,19 +3,16 @@ module Auth.Method.OAuthGoogle exposing (..)
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
 import Auth.Protocol.OAuth
-import Base64.Encode as Base64
-import Bytes exposing (Bytes)
-import Bytes.Encode as Bytes
-import Http
+import Effect.Command exposing (BackendOnly)
+import Effect.Http
+import Effect.Task
 import JWT exposing (..)
 import JWT.JWS as JWS
 import Json.Decode as Json
 import OAuth
 import OAuth.AuthorizationCode as OAuth
 import SeqDict as Dict exposing (SeqDict)
-import Task exposing (Task)
 import Url exposing (Protocol(..), Url)
-import Url.Builder
 
 
 configuration :
@@ -27,6 +24,8 @@ configuration :
             backendMsg
             { frontendModel | authFlow : Flow, authRedirectBaseUrl : Url }
             backendModel
+            BackendOnly
+            toMsg
 configuration clientId clientSecret =
     ProtocolOAuth
         { id = "OAuthGoogle"
@@ -39,7 +38,7 @@ configuration clientId clientSecret =
         , scope = [ "openid email profile" ]
         , getUserInfo = getUserInfo
         , onFrontendCallbackInit = Auth.Protocol.OAuth.onFrontendCallbackInit
-        , placeholder = \x -> ()
+        , placeholder = \_ -> ()
 
         -- , onAuthCallbackReceived = Debug.todo "onAuthCallbackReceived"
         }
@@ -47,7 +46,7 @@ configuration clientId clientSecret =
 
 getUserInfo :
     OAuth.AuthenticationSuccess
-    -> Task Auth.Common.Error UserInfo
+    -> Effect.Task.Task restriction Auth.Common.Error UserInfo
 getUserInfo authenticationSuccess =
     let
         extract : String -> Json.Decoder a -> SeqDict String Json.Value -> Result String a
@@ -91,34 +90,37 @@ getUserInfo authenticationSuccess =
                             meta =
                                 token.claims.metadata
                         in
-                        Result.map4
-                            (\email email_verified given_name family_name ->
+                        Result.map5
+                            (\email email_verified given_name family_name picture ->
                                 { email = email
                                 , email_verified = email_verified
                                 , given_name = given_name
                                 , family_name = family_name
+                                , picture = picture
                                 }
                             )
                             (extract "email" Json.string meta)
                             (extract "email_verified" Json.bool meta)
                             (extract "given_name" Json.string meta)
                             (extractOptional Nothing "family_name" (Json.string |> Json.nullable) meta)
+                            (extractOptional Nothing "picture" (Json.string |> Json.nullable) meta)
                     )
     in
-    Task.mapError (Auth.Common.ErrAuthString << HttpHelpers.httpErrorToString) <|
+    Effect.Task.mapError (Auth.Common.ErrAuthString << HttpHelpers.httpErrorToString) <|
         case stuff of
             Ok result ->
-                Task.succeed
+                Effect.Task.succeed
                     { email = result.email
                     , name =
                         [ result.given_name, Maybe.withDefault "" result.family_name ]
                             |> String.join " "
                             |> nothingIfEmpty
                     , username = Nothing
+                    , profilePicture = result.picture
                     }
 
             Err err ->
-                Task.fail (Http.BadBody err)
+                Effect.Task.fail (Effect.Http.BadBody err)
 
 
 jwtErrorToString err =

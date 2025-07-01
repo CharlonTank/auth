@@ -2,16 +2,19 @@ module Auth.Protocol.OAuth exposing (..)
 
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
-import Browser.Navigation as Navigation
-import Http
+import Duration
+import Effect.Browser.Navigation as Navigation
+import Effect.Command as Command exposing (BackendOnly, Command, FrontendOnly)
+import Effect.Http
+import Effect.Lamdera exposing (SessionId, sessionIdToString)
+import Effect.Task exposing (Task)
+import Effect.Time
 import Json.Decode as Json
+import List
 import OAuth
 import OAuth.AuthorizationCode as OAuth
-import Process
 import SHA1
 import SeqDict as Dict exposing (SeqDict)
-import Task exposing (Task)
-import Time
 import Url exposing (Url)
 
 
@@ -20,8 +23,8 @@ onFrontendCallbackInit :
     -> Auth.Common.MethodId
     -> Url
     -> Navigation.Key
-    -> (Auth.Common.ToBackend -> Cmd frontendMsg)
-    -> ( { frontendModel | authFlow : Flow, authRedirectBaseUrl : Url }, Cmd frontendMsg )
+    -> (Auth.Common.ToBackend -> Command FrontendOnly toMsg frontendMsg)
+    -> ( { frontendModel | authFlow : Flow, authRedirectBaseUrl : Url }, Command FrontendOnly toMsg frontendMsg )
 onFrontendCallbackInit model methodId origin navigationKey toBackendFn =
     let
         redirectUri =
@@ -33,7 +36,7 @@ onFrontendCallbackInit model methodId origin navigationKey toBackendFn =
     case OAuth.parseCode origin of
         OAuth.Empty ->
             ( { model | authFlow = Idle }
-            , Cmd.none
+            , Command.none
             )
 
         OAuth.Success { code, state } ->
@@ -48,7 +51,7 @@ onFrontendCallbackInit model methodId origin navigationKey toBackendFn =
                     accessTokenRequested model_ methodId code state_
             in
             ( newModel
-            , Cmd.batch [ toBackendFn newCmds, clearUrl ]
+            , Command.batch [ toBackendFn newCmds, clearUrl ]
             )
 
         OAuth.Error error ->
@@ -69,15 +72,16 @@ accessTokenRequested model methodId code state =
     )
 
 
+initiateSignin : Bool -> SessionId -> Url -> ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel restriction toMsg -> (BackendMsg -> backendMsg) -> Effect.Time.Posix -> { b | pendingAuths : SeqDict Effect.Lamdera.SessionId PendingAuth } -> ( { b | pendingAuths : SeqDict Effect.Lamdera.SessionId PendingAuth }, Command BackendOnly toMsg backendMsg )
 initiateSignin isDev sessionId baseUrl config asBackendMsg now backendModel =
     let
         signedState =
             SHA1.toBase64 <|
                 SHA1.fromString <|
-                    (String.fromInt <| Time.posixToMillis <| now)
+                    (String.fromInt <| Effect.Time.posixToMillis <| now)
                         -- @TODO this needs to be user-injected config
                         ++ "0x3vd7a"
-                        ++ sessionId
+                        ++ sessionIdToString sessionId
 
         newPendingAuth : PendingAuth
         newPendingAuth =
@@ -88,6 +92,12 @@ initiateSignin isDev sessionId baseUrl config asBackendMsg now backendModel =
 
         url =
             generateSigninUrl baseUrl signedState config
+
+        _ =
+            Debug.log "OAuth initiate - sessionId" (sessionIdToString sessionId)
+
+        _ =
+            Debug.log "OAuth initiate - state" signedState
     in
     ( { backendModel
         | pendingAuths = backendModel.pendingAuths |> Dict.insert sessionId newPendingAuth
@@ -103,7 +113,7 @@ initiateSignin isDev sessionId baseUrl config asBackendMsg now backendModel =
     )
 
 
-generateSigninUrl : Url -> Auth.Common.State -> Auth.Common.ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel -> Url
+generateSigninUrl : Url -> Auth.Common.State -> Auth.Common.ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel restriction toMsg -> Url
 generateSigninUrl baseUrl state configuration =
     let
         queryAdjustedUrl =
@@ -126,10 +136,11 @@ generateSigninUrl baseUrl state configuration =
         |> OAuth.makeAuthorizationUrl
 
 
+onAuthCallbackReceived : SessionId -> Effect.Lamdera.ClientId -> { a | clientId : String, clientSecret : String, tokenEndpoint : Url, id : MethodId, getUserInfo : OAuth.AuthenticationSuccess -> Task BackendOnly Error UserInfo } -> Url -> OAuth.AuthorizationCode -> String -> Effect.Time.Posix -> (BackendMsg -> backendMsg) -> { backendModel | pendingAuths : SeqDict SessionId PendingAuth } -> ( { backendModel | pendingAuths : SeqDict SessionId PendingAuth }, Command BackendOnly toMsg backendMsg )
 onAuthCallbackReceived sessionId clientId method receivedUrl code state now asBackendMsg backendModel =
     ( backendModel
     , validateCallbackToken method.clientId method.clientSecret method.tokenEndpoint receivedUrl code
-        |> Task.andThen
+        |> Effect.Task.andThen
             (\authenticationResponse ->
                 case backendModel.pendingAuths |> Dict.get sessionId of
                     Just pendingAuth ->
@@ -140,16 +151,47 @@ onAuthCallbackReceived sessionId clientId method receivedUrl code state now asBa
                         if pendingAuth.state == state then
                             method.getUserInfo
                                 authenticationResponse
-                                |> Task.map (\userInfo -> ( userInfo, authToken ))
+                                |> Effect.Task.map (\userInfo -> ( userInfo, authToken ))
 
                         else
-                            Task.fail <| Auth.Common.ErrAuthString "Invalid auth state. Please log in again or report this issue."
+                            Effect.Task.fail <| Auth.Common.ErrAuthString "Invalid auth state. Please log in again or report this issue."
 
                     Nothing ->
-                        Task.fail <| Auth.Common.ErrAuthString "Couldn't validate auth, please login again."
+                        let
+                            _ =
+                                Debug.log "OAuth callback - sessionId" (sessionIdToString sessionId)
+
+                            _ =
+                                Debug.log "OAuth callback - pendingAuths" (Dict.keys backendModel.pendingAuths |> List.map sessionIdToString)
+                        in
+                        Effect.Task.fail <| Auth.Common.ErrAuthString "Couldn't validate auth, please login again."
             )
-        |> Task.attempt (Auth.Common.AuthSuccess sessionId clientId method.id now >> asBackendMsg)
+        |> Effect.Task.attempt (Auth.Common.AuthSuccess sessionId clientId method.id now >> asBackendMsg)
     )
+
+
+oauthTokenResolver : Effect.Http.Resolver BackendOnly Effect.Http.Error OAuth.AuthenticationSuccess
+oauthTokenResolver =
+    Effect.Http.stringResolver <|
+        \response ->
+            case response of
+                Effect.Http.GoodStatus_ _ body ->
+                    Json.decodeString OAuth.defaultAuthenticationSuccessDecoder body
+                        |> Result.mapError Json.errorToString
+                        |> Result.mapError Effect.Http.BadBody
+
+                Effect.Http.BadStatus_ metadata body ->
+                    -- OAuth errors come with 400 status, just return the body
+                    Err (Effect.Http.BadBody body)
+
+                Effect.Http.BadUrl_ message ->
+                    Err (Effect.Http.BadUrl message)
+
+                Effect.Http.Timeout_ ->
+                    Err Effect.Http.Timeout
+
+                Effect.Http.NetworkError_ ->
+                    Err Effect.Http.NetworkError
 
 
 validateCallbackToken :
@@ -158,7 +200,7 @@ validateCallbackToken :
     -> Url
     -> Url
     -> OAuth.AuthorizationCode
-    -> Task Auth.Common.Error OAuth.AuthenticationSuccess
+    -> Effect.Task.Task BackendOnly Auth.Common.Error OAuth.AuthenticationSuccess
 validateCallbackToken clientId clientSecret tokenEndpoint redirectUri code =
     let
         req =
@@ -173,20 +215,20 @@ validateCallbackToken clientId clientSecret tokenEndpoint redirectUri code =
                 }
     in
     { method = req.method
-    , headers = req.headers ++ [ Http.header "Accept" "application/json" ]
+    , headers = req.headers ++ [ Effect.Http.header "Accept" "application/json" ]
     , url = req.url
     , body = req.body
-    , resolver = HttpHelpers.jsonResolver OAuth.defaultAuthenticationSuccessDecoder
-    , timeout = req.timeout
+    , resolver = oauthTokenResolver
+    , timeout = req.timeout |> Maybe.map Duration.milliseconds
     }
-        |> Http.task
-        |> Task.mapError parseAuthenticationResponseError
+        |> Effect.Http.task
+        |> Effect.Task.mapError parseAuthenticationResponseError
 
 
-parseAuthenticationResponse : Result Http.Error OAuth.AuthenticationSuccess -> Result Auth.Common.Error OAuth.AuthenticationSuccess
+parseAuthenticationResponse : Result Effect.Http.Error OAuth.AuthenticationSuccess -> Result Auth.Common.Error OAuth.AuthenticationSuccess
 parseAuthenticationResponse res =
     case res of
-        Err (Http.BadBody body) ->
+        Err (Effect.Http.BadBody body) ->
             case Json.decodeString OAuth.defaultAuthenticationErrorDecoder body of
                 Ok error ->
                     Err <| Auth.Common.ErrAuthentication error
@@ -201,29 +243,38 @@ parseAuthenticationResponse res =
             Ok authenticationSuccess
 
 
-parseAuthenticationResponseError : Http.Error -> Auth.Common.Error
+parseAuthenticationResponseError : Effect.Http.Error -> Auth.Common.Error
 parseAuthenticationResponseError httpErr =
     case httpErr of
-        Http.BadBody body ->
+        Effect.Http.BadBody body ->
             case Json.decodeString OAuth.defaultAuthenticationErrorDecoder body of
                 Ok error ->
                     Auth.Common.ErrAuthentication error
 
                 _ ->
-                    Auth.Common.ErrHTTPGetAccessToken
+                    Auth.Common.ErrAuthString ("Failed to decode OAuth error from response: " ++ body)
 
-        _ ->
-            Auth.Common.ErrHTTPGetAccessToken
+        Effect.Http.BadUrl url ->
+            Auth.Common.ErrAuthString ("Bad URL: " ++ url)
+
+        Effect.Http.Timeout ->
+            Auth.Common.ErrAuthString "Request timeout"
+
+        Effect.Http.NetworkError ->
+            Auth.Common.ErrAuthString "Network error"
+
+        Effect.Http.BadStatus status ->
+            Auth.Common.ErrAuthString ("Bad status: " ++ String.fromInt status)
 
 
-makeToken : Auth.Common.MethodId -> OAuth.AuthenticationSuccess -> Time.Posix -> Auth.Common.Token
+makeToken : Auth.Common.MethodId -> OAuth.AuthenticationSuccess -> Effect.Time.Posix -> Auth.Common.Token
 makeToken methodId authenticationSuccess now =
     { methodId = methodId
     , token = authenticationSuccess.token
     , created = now
     , expires =
-        (Time.posixToMillis now
+        (Effect.Time.posixToMillis now
             + ((authenticationSuccess.expiresIn |> Maybe.withDefault 0) * 1000)
         )
-            |> Time.millisToPosix
+            |> Effect.Time.millisToPosix
     }
