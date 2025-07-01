@@ -7,19 +7,20 @@ authentication experience without redirects. Users can sign in with a single
 tap/click using their Google account.
 
 Unlike traditional OAuth, Google One Tap:
-- Provides an ID token directly to the frontend
-- Doesn't require redirect flows
-- Must verify the JWT token server-side
+
+  - Provides an ID token directly to the frontend
+  - Doesn't require redirect flows
+  - Must verify the JWT token server-side
 
 -}
 
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
+import JWT exposing (..)
+import JWT.JWS as JWS
 import Json.Decode as Json
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
-import JWT exposing (..)
-import JWT.JWS as JWS
 import Lamdera exposing (SessionId)
 import SeqDict as Dict exposing (SeqDict)
 import Time exposing (Posix)
@@ -59,7 +60,7 @@ getUserInfo idToken =
     case JWT.fromString idToken of
         Ok (JWS token) ->
             decodeGoogleUserInfo token.claims.metadata
-        
+
         Err err ->
             Err ("Failed to decode JWT: " ++ jwtErrorToString err)
 
@@ -104,17 +105,20 @@ decodeGoogleUserInfo metadata =
 
 {-| Verify Google ID token
 This should verify:
-1. Token signature using Google's public keys
-2. Issuer is https://accounts.google.com
-3. Audience matches your client ID
-4. Token hasn't expired
+
+1.  Token signature using Google's public keys
+2.  Issuer is <https://accounts.google.com>
+3.  Audience matches your client ID
+4.  Token hasn't expired
+
 -}
 verifyGoogleIdToken : String -> String -> Result String UserInfo
 verifyGoogleIdToken clientId idToken =
     case JWT.fromString idToken of
         Ok (JWS token) ->
             let
-                metadata = token.claims.metadata
+                metadata =
+                    token.claims.metadata
             in
             -- Verify issuer
             case getClaimString "iss" metadata of
@@ -126,17 +130,19 @@ verifyGoogleIdToken clientId idToken =
                                 if audience == clientId then
                                     -- Token is valid, extract user info
                                     decodeGoogleUserInfo metadata
+
                                 else
                                     Err "Invalid audience"
-                            
+
                             Nothing ->
                                 Err "Missing audience claim"
+
                     else
                         Err "Invalid issuer"
-                
+
                 Nothing ->
                     Err "Missing issuer claim"
-        
+
         Err err ->
             Err ("Failed to decode JWT: " ++ jwtErrorToString err)
 
@@ -151,7 +157,7 @@ getClaimString key metadata =
                 case Json.decodeValue Json.string value of
                     Ok str ->
                         Just str
-                    
+
                     Err _ ->
                         Nothing
             )

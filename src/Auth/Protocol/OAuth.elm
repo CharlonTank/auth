@@ -92,9 +92,12 @@ initiateSignin isDev sessionId baseUrl config asBackendMsg now backendModel =
 
         url =
             generateSigninUrl baseUrl signedState config
-            
-        _ = Debug.log "OAuth initiate - sessionId" (sessionIdToString sessionId)
-        _ = Debug.log "OAuth initiate - state" signedState
+
+        _ =
+            Debug.log "OAuth initiate - sessionId" (sessionIdToString sessionId)
+
+        _ =
+            Debug.log "OAuth initiate - state" signedState
     in
     ( { backendModel
         | pendingAuths = backendModel.pendingAuths |> Dict.insert sessionId newPendingAuth
@@ -155,8 +158,11 @@ onAuthCallbackReceived sessionId clientId method receivedUrl code state now asBa
 
                     Nothing ->
                         let
-                            _ = Debug.log "OAuth callback - sessionId" (sessionIdToString sessionId)
-                            _ = Debug.log "OAuth callback - pendingAuths" (Dict.keys backendModel.pendingAuths |> List.map sessionIdToString)
+                            _ =
+                                Debug.log "OAuth callback - sessionId" (sessionIdToString sessionId)
+
+                            _ =
+                                Debug.log "OAuth callback - pendingAuths" (Dict.keys backendModel.pendingAuths |> List.map sessionIdToString)
                         in
                         Effect.Task.fail <| Auth.Common.ErrAuthString "Couldn't validate auth, please login again."
             )
@@ -250,13 +256,13 @@ parseAuthenticationResponseError httpErr =
 
         Effect.Http.BadUrl url ->
             Auth.Common.ErrAuthString ("Bad URL: " ++ url)
-            
+
         Effect.Http.Timeout ->
             Auth.Common.ErrAuthString "Request timeout"
-            
+
         Effect.Http.NetworkError ->
             Auth.Common.ErrAuthString "Network error"
-            
+
         Effect.Http.BadStatus status ->
             Auth.Common.ErrAuthString ("Bad status: " ++ String.fromInt status)
 

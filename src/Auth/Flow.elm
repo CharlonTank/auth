@@ -258,7 +258,7 @@ backendUpdate { asToFrontend, asBackendMsg, sendToFrontend, backendModel, loadMe
                             case config.verifyIdToken config.clientId idToken of
                                 Ok userInfo ->
                                     -- Success - trigger the AuthSuccess flow
-                                    backendUpdate 
+                                    backendUpdate
                                         { asToFrontend = asToFrontend
                                         , asBackendMsg = asBackendMsg
                                         , sendToFrontend = sendToFrontend
@@ -270,7 +270,7 @@ backendUpdate { asToFrontend, asBackendMsg, sendToFrontend, backendModel, loadMe
                                         , isDev = isDev
                                         }
                                         (Auth.Common.AuthSuccess sessionId clientId methodId now (Ok ( userInfo, Nothing )))
-                                
+
                                 Err error ->
                                     -- Verification failed
                                     ( backendModel
