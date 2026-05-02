@@ -63,7 +63,7 @@ The following section can be ignored if you're dealing with a very generic OAuth
 -}
 
 import Extra.Maybe as Maybe
-import Http as Http
+import Http
 
 
 

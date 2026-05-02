@@ -29,6 +29,17 @@ type alias Config frontendMsg toBackend backendMsg toFrontend frontendModel back
 type Method frontendMsg backendMsg frontendModel backendModel
     = ProtocolOAuth (ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel)
     | ProtocolEmailMagicLink (ConfigurationEmailMagicLink frontendMsg backendMsg frontendModel backendModel)
+    | ProtocolGoogleOneTap (ConfigurationGoogleOneTap backendMsg backendModel)
+
+
+type alias ConfigurationGoogleOneTap backendMsg backendModel =
+    { id : String
+    , clientId : String
+    , clientSecret : String
+    , scope : List String
+    , verifyIdToken : String -> String -> Result String UserInfo
+    , placeholder : ( backendModel, backendMsg ) -> ()
+    }
 
 
 type alias ConfigurationEmailMagicLink frontendMsg backendMsg frontendModel backendModel =
@@ -95,6 +106,7 @@ type ToBackend
     | AuthCallbackReceived MethodId Url AuthCode State
     | AuthRenewSessionRequested
     | AuthLogoutRequested
+    | AuthGoogleOneTapTokenReceived MethodId String
 
 
 type BackendMsg
@@ -104,6 +116,7 @@ type BackendMsg
     | AuthSuccess SessionId ClientId MethodId Time.Posix (Result Error ( UserInfo, Maybe Token ))
     | AuthRenewSession SessionId ClientId
     | AuthLogout SessionId ClientId
+    | AuthGoogleOneTapTokenReceived_ SessionId ClientId MethodId String Time.Posix
 
 
 type ToFrontend

@@ -38,7 +38,7 @@ module OAuth.Internal exposing
     )
 
 import Base64.Encode as Base64
-import Dict as Dict exposing (Dict)
+import Dict exposing (Dict)
 import Http
 import Json.Decode as Json
 import OAuth exposing (..)
